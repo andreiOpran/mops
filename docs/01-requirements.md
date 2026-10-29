@@ -61,7 +61,7 @@ Actori secundari:
 | ID | Cerință |
 |---|---|
 | FR-01 | Sistemul descarcă zilnic orarul GTFS publicat de TPBI, detectează o versiune nouă (după `feed_version`) și o importă fără a afecta datele colectate anterior. |
-| FR-02 | Sistemul interoghează fluxurile GTFS-RT Vehicle Positions și Trip Updates la un interval fix de 15 secunde, egal cu frecvența de actualizare a fluxurilor. |
+| FR-02 | Sistemul interoghează fluxurile GTFS-RT Vehicle Positions și Trip Updates la un interval fix de 15 secunde, egal cu frecvența de actualizare a fluxurilor. Fiecare instantaneu primit este arhivat nemodificat (comprimat), pentru a putea fi reprocesat. |
 | FR-03 | Sistemul detectează sosirea unui vehicul într-o stație: trecerea în starea `STOPPED_AT` sau avansul secvenței curente de stație. Pentru stațiile parcurse între două interogări folosește ultima estimare din Trip Updates. |
 | FR-04 | Sistemul calculează întârzierea fiecărei sosiri, în secunde, ca diferență între ora reală și ora programată. Ora programată se calculează pornind de la data de start a cursei, inclusiv pentru orele GTFS de peste 24:00 și în nopțile cu schimbarea orei. |
 | FR-05 | Sistemul stochează fiecare sosire: data de serviciu, cursa, linia, stația, secvența, ora programată, ora reală, întârzierea, metoda de detecție, vehiculul. Ora programată se salvează în înregistrare, astfel încât datele rămân valide după schimbarea versiunii orarului. |
@@ -153,7 +153,9 @@ Numerotarea cazurilor de utilizare corespunde User Stories din [02-user-stories.
 - Fluxurile TPBI rămân disponibile public, fără cheie de acces.
 - Metroul nu este acoperit, deoarece nu are date în timp real în fluxurile TPBI.
 - Precizia orei de sosire depinde de intervalul de interogare (15 s) și de calitatea datelor GPS transmise de operatori.
-- La un interval de 15 s, colectorul descarcă aproximativ 3,3 GB pe zi (circa 100 GB pe lună), deoarece fluxurile nu sunt comprimate. Serverul VPS trebuie ales în funcție de acest trafic.
+- La un interval de 15 s, colectorul descarcă aproximativ 3,3 GB pe zi (circa 100 GB pe lună), deoarece serverul TPBI nu comprimă răspunsurile. Serverul VPS trebuie ales în funcție de acest trafic.
+- Arhiva brută comprimată (gzip) ocupă aproximativ 0,6 GB pe zi (măsurat: ~105 KB pe interogare, ambele fluxuri). Până la prezentarea finală sunt necesari circa 50-60 GB de spațiu pe disc.
+- Fluxurile și arhiva orarului au ETag. Cu `If-None-Match`, un flux neschimbat întoarce HTTP 304, fără conținut.
 - Serverul TPBI (protejat de Cloudflare) respinge cu HTTP 403 cererile care au User-Agent-ul implicit al bibliotecii Python urllib. Colectorul trimite un User-Agent propriu, care identifică proiectul.
 - Orarul static curent expiră la 05.01.2027. Aplicația trebuie să preia automat versiunea nouă (FR-01).
 - Setul de date crește doar cât timp colectorul rulează. Cu cât colectorul pornește mai devreme, cu atât perioada acoperită la prezentarea finală este mai lungă.
@@ -177,6 +179,9 @@ Numerotarea cazurilor de utilizare corespunde User Stories din [02-user-stories.
 | 1 | O sosire este "la timp" dacă întârzierea este între -1 min și +3 min față de orar. | Toleranța acoperă abaterile mici, normale în trafic, și precizia de aproximativ 15 s a detecției sosirilor. |
 | 2 | Codul sursă este găzduit pe GitHub, iar managementul proiectului se face în GitHub Projects. | Repository-ul, Pull Request-urile și board-ul de task-uri sunt în același loc, iar task-urile se pot lega direct de commit-uri și PR-uri. |
 | 3 | Fluxurile în timp real sunt interogate la fiecare 15 secunde. | Măsurătorile arată că TPBI actualizează ambele fluxuri aproximativ la fiecare 15 s. O interogare mai deasă nu aduce date noi, iar una mai rară (ex. 20 s) pierde o parte din actualizări și scade precizia orei de sosire. Valoarea respectă și limita din NFR-02. |
+| 4 | Colectarea brută (task tehnic T-01) pornește pe VPS înainte de Sprint. Colectorul doar salvează instantaneele, fără să le interpreteze. Detecția sosirilor și calculul întârzierii (US-02, US-03) se dezvoltă în Sprint și reprocesează arhiva. | Datele în timp real nu pot fi obținute retroactiv; fiecare zi fără colectare este pierdută definitiv. Separarea păstrează logica principală pentru Sprint (inclusiv TDD) și oferă date reale pentru teste. |
+| 5 | Orele din numele fișierelor arhivei sunt în UTC. | În noaptea schimbării orei, ora locală se repetă; UTC evită nume duplicate. Conversia în Europe/Bucharest se face la procesare (NFR-03). |
+| 6 | Colectorul brut rulează ca serviciu systemd izolat, nu în Docker Compose. | Un singur proces fără dependențe de alte servicii; pornire mai simplă. Integrarea în Docker Compose (NFR-11) se reevaluează odată cu backend-ul. |
 
 ### 9.2 Decizii deschise
 
