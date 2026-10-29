@@ -25,7 +25,7 @@ Coloana SP conține estimarea de referință din [04-estimare.md](04-estimare.md
 | Rang | ID | User Story | MoSCoW | SP (ref.) | Depinde de | Justificarea priorității |
 |---:|---|---|---|---|---|---|
 | 1 | US-01 | Importul orarului GTFS | Must | 5 | - | Fără orar nu se poate calcula nicio întârziere. |
-| 2 | US-02 | Detectarea sosirilor în stații | Must | 13 | US-01 | Nucleul produsului. Colectarea trebuie pornită cât mai devreme, ca datele să se acumuleze până la prezentarea finală. |
+| 2 | US-02 | Detectarea sosirilor în stații | Must | 13 | US-01, T-01 | Nucleul produsului. Procesează instantaneele arhivate de T-01, inclusiv cele colectate înainte de Sprint. |
 | 3 | US-03 | Calculul și stocarea întârzierii | Must | 5 | US-01, US-02 | Produce setul de date pe care se bazează toate celelalte funcționalități. |
 | 4 | US-04 | Căutarea unei linii sau stații | Must | 3 | US-01 | Punctul de intrare pentru toate vizualizările. |
 | 5 | US-05 | Statisticile unei linii | Must | 5 | US-03, US-04 | Prima valoare vizibilă, utilă tuturor categoriilor de utilizatori. |
@@ -40,6 +40,16 @@ Coloana SP conține estimarea de referință din [04-estimare.md](04-estimare.md
 | 14 | US-14 | Cont de utilizator | Could | 8 | - | Necesar doar pentru favorite. |
 | 15 | US-15 | Favorite și panou personal | Could | 5 | US-14, US-05 | Personalizare; nu afectează setul de date. |
 | 16 | US-16 | API public | Could | 5 | US-05, US-10 | Documentația OpenAPI este generată de FastAPI, dar un API public cere limitarea cererilor și o interfață stabilă. |
+
+### Task-uri tehnice (enablers)
+
+Task-uri fără valoare directă pentru utilizator, necesare pentru User Stories. Nu sunt User Stories și nu intră în calculul User Stories implementate. Se urmăresc în GitHub Projects ca orice task.
+
+| ID | Task | Pentru | Cerințe | Motiv |
+|---|---|---|---|---|
+| T-01 | Colector brut pe VPS: arhivarea fluxurilor Vehicle Positions și Trip Updates la fiecare 15 s și a fiecărei versiuni a orarului GTFS, fără interpretarea datelor; jurnal al fiecărei interogări | US-01, US-02, US-03, US-09 | FR-02, FR-06, NFR-01, NFR-02 | Datele în timp real nu pot fi obținute retroactiv. Pornit înainte de Sprint, pentru ca setul de date să acopere o perioadă cât mai lungă (decizia 4 din [01-requirements.md](01-requirements.md)). |
+
+Ce nu face T-01 (rămâne în User Stories, dezvoltate în Sprint): importul orarului în baza de date (US-01), detecția sosirilor (US-02), calculul întârzierii (US-03), afișarea golurilor de date (US-09).
 
 ### Won't (excluse din această versiune)
 
