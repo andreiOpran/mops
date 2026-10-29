@@ -1,0 +1,59 @@
+@startuml use-case-diagram
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Utilizator" as U
+actor "Călător" as C
+actor "Analist de date" as A
+actor "Planificator transport" as P
+actor "Utilizator autentificat" as UA
+actor "Temporizator" as T <<timer>>
+rectangle "Platforma de date deschise TPBI\n(GTFS / GTFS-RT)" as TPBI <<sistem extern>>
+
+U <|-- C
+U <|-- A
+U <|-- P
+U <|-- UA
+
+rectangle "Platforma web de monitorizare real-time a întârzierilor STB" {
+  usecase "UC01 Importă orarul GTFS" as UC01
+  usecase "UC02 Colectează date\nîn timp real" as UC02
+  usecase "UC03 Detectează sosiri și\ncalculează întârzieri" as UC03
+  usecase "UC04 Caută linie / stație" as UC04
+  usecase "UC05 Vizualizează\nstatistici linie" as UC05
+  usecase "UC06 Vizualizează întârzieri\nlinie la stație" as UC06
+  usecase "UC07 Vizualizează tipare\npe ore și zile" as UC07
+  usecase "UC08 Vizualizează distribuția\nîntârzierilor" as UC08
+  usecase "UC09 Vizualizează\nacoperirea datelor" as UC09
+  usecase "UC10 Exportă date (CSV)" as UC10
+  usecase "UC11 Vizualizează sosiri\nlive în stație" as UC11
+  usecase "UC12 Vizualizează harta\nvehiculelor" as UC12
+  usecase "UC13 Vizualizează clasamente" as UC13
+  usecase "UC14 Creează cont /\nAutentificare" as UC14
+  usecase "UC15 Gestionează favorite" as UC15
+  usecase "UC16 Interoghează API public" as UC16
+}
+
+T --> UC01
+T --> UC02
+UC02 ..> UC03 : <<include>>
+UC01 --> TPBI
+UC02 --> TPBI
+
+U --> UC04
+U --> UC05
+U --> UC11
+U --> UC12
+U --> UC14
+C --> UC06
+P --> UC07
+P --> UC08
+P --> UC13
+A --> UC07
+A --> UC08
+A --> UC09
+A --> UC10
+A --> UC16
+UA --> UC15
+@enduml
