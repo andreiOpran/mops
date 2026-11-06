@@ -1,0 +1,162 @@
+@startuml erd
+' Propunere de schemă (de discutat la Sprint Planning). Detalii: docs/model-date.md
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #555555
+}
+
+package "Orar GTFS (versionat, US-01)" #F4F8FB {
+  entity feed_versions {
+    * id : serial <<PK>>
+    --
+    * feed_version : text
+    * sha256 : char(64) <<unique>>
+    * valid_from : date
+    * valid_to : date
+    * imported_at : timestamptz
+  }
+
+  entity agencies {
+    * id : serial <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * agency_id : text
+    * name : text
+  }
+
+  entity routes {
+    * id : serial <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * agency_pk : int <<FK>>
+    * route_id : text
+    * short_name : text
+    long_name : text
+    * route_type : smallint
+    color : char(6)
+  }
+
+  entity stops {
+    * id : serial <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * stop_id : text
+    * name : text
+    * lat : double
+    * lon : double
+    parent_stop_pk : int <<FK>>
+  }
+
+  entity services {
+    * id : serial <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * service_id : text
+    * monday .. sunday : bool
+    * start_date : date
+    * end_date : date
+  }
+
+  entity service_exceptions {
+    * service_pk : int <<PK, FK>>
+    * date : date <<PK>>
+    --
+    * exception_type : smallint
+  }
+
+  entity trips {
+    * id : serial <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * trip_id : text
+    * route_pk : int <<FK>>
+    * service_pk : int <<FK>>
+    headsign : text
+    direction_id : smallint
+  }
+
+  entity stop_times {
+    * trip_pk : int <<PK, FK>>
+    * stop_sequence : smallint <<PK>>
+    --
+    * stop_pk : int <<FK>>
+    * arrival_seconds : int
+    * departure_seconds : int
+  }
+}
+
+package "Set de date (US-02, US-03, US-09)" #F7FBF4 {
+  entity arrivals <<partitioned by service_date>> {
+    * id : bigint <<PK>>
+    * service_date : date <<PK>>
+    --
+    * feed_version_id : int <<FK>>
+    * trip_id : text
+    * route_id : text
+    * stop_id : text
+    * stop_sequence : smallint
+    * scheduled_at : timestamptz
+    * observed_at : timestamptz
+    * delay_seconds : int
+    * method : arrival_method
+    vehicle_id : text
+    --
+    <<unique>> (service_date, trip_id, stop_sequence)
+  }
+
+  entity collection_gaps {
+    * id : serial <<PK>>
+    --
+    * started_at : timestamptz
+    * ended_at : timestamptz
+    * reason : text
+  }
+}
+
+package "Conturi (US-14, US-15, Could)" #FBF7F4 {
+  entity users {
+    * id : serial <<PK>>
+    --
+    * email : text <<unique>>
+    * password_hash : text
+    * created_at : timestamptz
+  }
+
+  entity favorites {
+    * user_id : int <<PK, FK>>
+    * kind : favorite_kind <<PK>>
+    * ref_id : text <<PK>>
+    --
+    * created_at : timestamptz
+  }
+}
+
+feed_versions ||--o{ agencies
+feed_versions ||--o{ routes
+feed_versions ||--o{ stops
+feed_versions ||--o{ services
+feed_versions ||--o{ trips
+agencies ||--o{ routes
+stops |o--o{ stops : parent
+services ||--o{ service_exceptions
+services ||--o{ trips
+routes ||--o{ trips
+trips ||--|{ stop_times
+stops ||--o{ stop_times
+feed_versions ||--o{ arrivals : "orar folosit"
+users ||--o{ favorites
+
+note bottom of arrivals
+  route_id, stop_id, trip_id = codurile GTFS (text), nu chei interne:
+  statisticile rămân continue între versiunile orarului (FR-05).
+  method: stopped_at | sequence_advance | trip_update_estimate (FR-03)
+end note
+
+note bottom of favorites
+  kind: line | stop; ref_id = route_id / stop_id.
+  ON DELETE CASCADE de la users (NFR-07).
+end note
+@enduml
