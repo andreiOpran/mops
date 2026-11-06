@@ -48,6 +48,8 @@ Task-uri fără valoare directă pentru utilizator, necesare pentru User Stories
 | ID | Task | Pentru | Cerințe | Motiv |
 |---|---|---|---|---|
 | T-01 | Colector brut pe VPS: arhivarea fluxurilor Vehicle Positions și Trip Updates la fiecare 15 s și a fiecărei versiuni a orarului GTFS, fără interpretarea datelor; jurnal al fiecărei interogări | US-01, US-02, US-03, US-09 | FR-02, FR-06, NFR-01, NFR-02 | Datele în timp real nu pot fi obținute retroactiv. Pornit înainte de Sprint, pentru ca setul de date să acopere o perioadă cât mai lungă (decizia 4 din [01-requirements.md](01-requirements.md)). |
+| T-02 | Strategia pentru spațiul pe disc al VPS-ului (disc mai mare, compresie zstd sau mutarea datelor vechi) | T-01 | NFR-01, NFR-05 | La ~0,6 GB pe zi, discul de 38 GB se umple în jurul jumătății lui decembrie, înainte de prezentarea finală. |
+| T-03 | Scheletul aplicației: FastAPI + SQLAlchemy/Alembic + PostgreSQL, React + TypeScript (Vite), Docker Compose, CI (GitHub Actions) cu teste și coverage | toate User Stories | NFR-10, NFR-11 | Structură comună înainte de lucrul în paralel. Fără tabele: schema bazei de date se propune separat și se decide de echipă. |
 
 Ce nu face T-01 (rămâne în User Stories, dezvoltate în Sprint): importul orarului în baza de date (US-01), detecția sosirilor (US-02), calculul întârzierii (US-03), afișarea golurilor de date (US-09).
 
