@@ -18,7 +18,8 @@
 
 - Cerințe: FR-02, FR-03
 - Criterii de acceptare (draft):
-  - Fluxurile Vehicle Positions și Trip Updates sunt interogate la fiecare 15 s, fără oprire.
+  - Fiecare instantaneu Vehicle Positions și Trip Updates preluat de colectorul brut (T-01, la fiecare 15 s) este procesat, fără oprire.
+  - Instantaneele arhivate de T-01 pot fi reprocesate; reprocesarea aceleiași perioade produce aceleași sosiri.
   - Când un vehicul trece în starea `STOPPED_AT` într-o stație sau secvența lui curentă avansează, se creează o singură înregistrare de sosire pentru perechea (cursă, dată, stație).
   - Stațiile parcurse între două interogări primesc ora din ultima estimare Trip Updates și sunt marcate cu metoda "estimare".
   - Pozițiile mai vechi decât un prag stabilit sunt ignorate.

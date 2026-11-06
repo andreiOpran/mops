@@ -1,0 +1,45 @@
+[Unit]
+Description=STB delay monitor - raw GTFS / GTFS-RT archiver (T-01)
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=stbcollector
+Group=stbcollector
+Environment=STB_DATA_DIR=/var/lib/stb-collector
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/stb-collector/venv/bin/python /opt/stb-collector/archiver.py
+Restart=always
+RestartSec=10
+# Data lives in /var/lib/stb-collector (created by systemd, owned by stbcollector).
+StateDirectory=stb-collector
+StateDirectoryMode=0750
+
+# Hardening: the process can only write its data dir and only talk over IPv4/IPv6.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
