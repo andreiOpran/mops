@@ -1,0 +1,49 @@
+# Local development: database + API + web app.
+#   docker compose up --build
+#   web app http://localhost:5173, API http://localhost:8000/docs
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: stb
+      POSTGRES_PASSWORD: stb
+      POSTGRES_DB: stb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stb -d stb"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://stb:stb@db:5432/stb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:24-slim
+    working_dir: /app
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    command: sh -c "npm ci && npm run dev"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
+  frontend-node-modules:
