@@ -15,6 +15,7 @@ from app.models import Arrival, FeedVersion, StopTime, Trip
 @dataclass(frozen=True)
 class DelayStats:
     updated: int  # arrivals that got their delay in this run
+    first_stop: int  # matched, but at the first stop of the trip: no delay (decision 8)
     unmatched: int  # arrivals still without delay (trip or stop not in the schedule)
 
 
@@ -52,25 +53,32 @@ def compute_delays(session: Session) -> DelayStats:
             by_version[version].append(arrival)
 
     updates = []
+    first_stops = 0
     for version, arrivals in by_version.items():
-        schedule = _trip_times(session, version, {arrival.trip_id for arrival in arrivals})
+        schedule, first = _trip_times(session, version, {arrival.trip_id for arrival in arrivals})
         for arrival in arrivals:
-            seconds = schedule.get((arrival.trip_id, arrival.stop_sequence))
+            stop = (arrival.trip_id, arrival.stop_sequence)
+            seconds = schedule.get(stop)
             if seconds is None:
                 continue
             planned = scheduled_at(arrival.service_date, seconds)
+            # Decision 8: vehicles wait at the terminus long before departure,
+            # so the first stop is matched (not looked at again) but gets no delay.
+            delay = None if stop in first else round((arrival.observed_at - planned).total_seconds())
+            first_stops += delay is None
             updates.append(
                 {
                     "id": arrival.id,
                     "feed_version_id": version,
                     "scheduled_at": planned,
-                    "delay_seconds": round((arrival.observed_at - planned).total_seconds()),
+                    "delay_seconds": delay,
                 }
             )
 
     if updates:
         session.execute(update(Arrival), updates)
-    return DelayStats(updated=len(updates), unmatched=len(pending) - len(updates))
+    updated = len(updates) - first_stops
+    return DelayStats(updated=updated, first_stop=first_stops, unmatched=len(pending) - len(updates))
 
 
 def _version_picker(session: Session):
@@ -94,9 +102,12 @@ def _version_picker(session: Session):
     return pick
 
 
-def _trip_times(session: Session, version: int, trip_ids: set[str]) -> dict[tuple[str, int], int]:
+def _trip_times(
+    session: Session, version: int, trip_ids: set[str]
+) -> tuple[dict[tuple[str, int], int], set[tuple[str, int]]]:
     """Scheduled seconds of every stop of these trips in one timetable version,
-    with stops that have no time interpolated between their neighbours."""
+    with stops that have no time interpolated between their neighbours, and
+    the first stop (lowest stop_sequence) of each trip."""
     rows = session.execute(
         select(
             Trip.trip_id,
@@ -112,9 +123,10 @@ def _trip_times(session: Session, version: int, trip_ids: set[str]) -> dict[tupl
         stops[trip_id].append((sequence, seconds))
 
     times = {}
+    first = {(trip_id, trip_stops[0][0]) for trip_id, trip_stops in stops.items()}
     for trip_id, trip_stops in stops.items():
         filled = interpolate([seconds for _, seconds in trip_stops])
         for (sequence, _), seconds in zip(trip_stops, filled):
             if seconds is not None:
                 times[trip_id, sequence] = seconds
-    return times
+    return times, first
