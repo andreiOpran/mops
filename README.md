@@ -38,6 +38,19 @@ rm backend/gtfs.zip
 - The import should print `gtfs.zip: imported <version> (feed_version_id=<n>)`. An archive already imported is skipped.
 - The VPS collector keeps every timetable version in `/var/lib/stb-collector/static/`; copy that folder locally and run `python -m app.gtfs --all <folder>` to import them all.
 
+### Detect arrivals and compute delays
+
+From the Vehicle Positions snapshots archived by the collector (`/var/lib/stb-collector/raw/vehiclePositions/`), copy a day or an hour into `backend/`, then:
+
+```bash
+docker compose exec backend python -m app.arrivals <folder> --save   # US-02a: store the arrivals
+docker compose exec backend python -m app.delays                     # US-03: compute their delays
+```
+
+- `python -m app.arrivals <folder>` without `--save` only prints a summary; `--csv arrivals.csv` also writes the arrivals to a file.
+- `python -m app.delays` prints how many delays were computed, how many arrivals are at the first stop of their trip (no delay: vehicles wait at the terminus) and how many have no match in the timetable.
+- Both are safe to run again: arrivals and delays already stored are kept. Import the timetables first: each arrival uses the one downloaded last before it.
+
 ### Run the tests
 
 The tests expect an empty database, so they use a separate `stb_test` database (create it once; recreate it after `docker compose down -v`):
