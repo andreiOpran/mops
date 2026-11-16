@@ -45,11 +45,16 @@ def import_feed(session: Session, zip_path: Path) -> FeedVersion | None:
     """Import one GTFS archive as a new feed version.
 
     Returns the new FeedVersion, or None if this exact archive (same sha256)
-    was already imported. Does not commit: the caller owns the transaction,
-    so a failed import leaves nothing behind.
+    was already imported. In that case, columns added after the first import
+    (stops.description, migration 0002) are filled in where still empty.
+    Does not commit: the caller owns the transaction, so a failed import
+    leaves nothing behind.
     """
     sha256 = _sha256(zip_path)
-    if session.scalar(select(FeedVersion.id).where(FeedVersion.sha256 == sha256)):
+    existing_id = session.scalar(select(FeedVersion.id).where(FeedVersion.sha256 == sha256))
+    if existing_id is not None:
+        with zipfile.ZipFile(zip_path) as archive:
+            _backfill_stop_descriptions(session, existing_id, archive)
         return None
 
     with zipfile.ZipFile(zip_path) as archive:
@@ -64,6 +69,31 @@ def import_feed(session: Session, zip_path: Path) -> FeedVersion | None:
         _import_stop_times(session, archive, trips, stops)
 
     return feed
+
+
+def _backfill_stop_descriptions(session: Session, feed_id: int, archive: zipfile.ZipFile) -> None:
+    """Fill stops.description for a version imported before the column existed.
+
+    Only rows that are still NULL are touched, so running it again is a no-op.
+    """
+    rows = [
+        {"feed": feed_id, "code": row["stop_id"], "description": row["stop_desc"]}
+        for row in _iter(archive, "stops.txt")
+        if row.get("stop_desc")
+    ]
+    if not rows:
+        return
+    table = Stop.__table__
+    session.execute(
+        update(table)
+        .where(
+            table.c.feed_version_id == bindparam("feed"),
+            table.c.stop_id == bindparam("code"),
+            table.c.description.is_(None),
+        )
+        .values(description=bindparam("description")),
+        rows,
+    )
 
 
 # --- one function per table, in dependency order -------------------------------
@@ -120,6 +150,7 @@ def _import_stops(session: Session, feed_id: int, archive: zipfile.ZipFile) -> I
             "feed_version_id": feed_id,
             "stop_id": row["stop_id"],
             "name": row["stop_name"],
+            "description": _text_or_none(row.get("stop_desc")),
             "lat": float(row["stop_lat"]),
             "lon": float(row["stop_lon"]),
         }
