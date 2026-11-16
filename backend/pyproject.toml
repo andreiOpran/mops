@@ -10,6 +10,7 @@ dependencies = [
     "psycopg[binary]==3.3.8",
     "alembic==1.20.1",
     "pydantic-settings==2.16.2",
+    "gtfs-realtime-bindings==3.0.0",
 ]
 
 [project.optional-dependencies]
