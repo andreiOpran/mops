@@ -83,8 +83,8 @@ package "Orar GTFS (versionat, US-01)" #F4F8FB {
     * stop_sequence : smallint <<PK>>
     --
     * stop_pk : int <<FK>>
-    * arrival_seconds : int
-    * departure_seconds : int
+    arrival_seconds : int
+    departure_seconds : int
   }
 }
 

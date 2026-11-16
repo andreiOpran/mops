@@ -16,6 +16,7 @@ if config.config_file_name is not None:
 
 from app.config import settings  # noqa: E402
 from app.db import Base  # noqa: E402
+import app.models  # noqa: E402,F401  (registers the tables on Base.metadata)
 
 # The URL comes from the app settings (DATABASE_URL), not from alembic.ini.
 config.set_main_option("sqlalchemy.url", settings.database_url)

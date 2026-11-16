@@ -27,7 +27,7 @@ Motiv: reprocesarea arhivei în timp real (colectată din 29.10.2026) trebuie s�
 
 ### 1.3 Orele
 
-- În `stop_times`, orele se stochează ca secunde față de începutul zilei de serviciu (`arrival_seconds`). Orele GTFS pot depăși 24:00 (maximul în orarul actual: 25:10).
+- În `stop_times`, orele se stochează ca secunde față de începutul zilei de serviciu (`arrival_seconds`). Orele GTFS pot depăși 24:00 (maximul în orarul actual: 25:10). Coloanele pot fi goale: GTFS permite lipsa orei la stațiile care nu sunt puncte de control (~25 000 de rânduri în orarul actual); ora programată pentru ele se interpolează la calculul întârzierii (US-03).
 - `scheduled_at` se calculează conform specificației GTFS: ora 12:00 a zilei de serviciu, în Europe/Bucharest, minus 12 h, plus `arrival_seconds`. Așa se tratează corect și noaptea schimbării orei (NFR-03).
 - Toate momentele se stochează ca `timestamptz`; afișarea se face în Europe/Bucharest.
 
