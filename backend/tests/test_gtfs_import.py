@@ -11,7 +11,7 @@ import hashlib
 from datetime import date
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.gtfs.importer import import_feed, parse_gtfs_time
@@ -224,3 +224,35 @@ def test_new_version_leaves_previous_version_unchanged(db_session, gtfs_v1, gtfs
         select(func.count()).select_from(StopTime).where(StopTime.trip_pk == old_trip.id)
     )
     assert old_times == 3
+
+
+def test_reimport_fills_descriptions_missing_from_an_earlier_import(db_session, gtfs_v1):
+    # A DB imported before stops.description existed (migration 0002) has NULLs.
+    feed = import_feed(db_session, gtfs_v1)
+    db_session.execute(update(Stop).values(description=None))
+
+    assert import_feed(db_session, gtfs_v1) is None  # still nothing new imported
+
+    stops = {
+        s.stop_id: s
+        for s in db_session.scalars(select(Stop).where(Stop.feed_version_id == feed.id))
+    }
+    assert stops["S3"].description == "Bd. Ghencea, Bucuresti"
+    assert stops["S1"].description is None  # empty in stops.txt
+    assert count_rows(db_session) == BASE_COUNTS
+
+
+def test_reimport_does_not_overwrite_existing_descriptions(db_session, gtfs_v1):
+    feed = import_feed(db_session, gtfs_v1)
+    db_session.execute(
+        update(Stop)
+        .where(Stop.feed_version_id == feed.id, Stop.stop_id == "S3")
+        .values(description="edited")
+    )
+
+    import_feed(db_session, gtfs_v1)
+
+    s3 = db_session.scalars(
+        select(Stop).where(Stop.feed_version_id == feed.id, Stop.stop_id == "S3")
+    ).one()
+    assert s3.description == "edited"
