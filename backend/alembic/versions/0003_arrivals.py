@@ -5,11 +5,8 @@
 - feed_versions.retrieved_at: when the collector downloaded the archive;
   picks the schedule version valid on a given day (decision 5).
 
-NOTE: down_revision is 0001 because 0002 (stop search, PR #29) is not merged
-yet. After it is merged, change down_revision to "0002".
-
 Revision ID: 0003
-Revises: 0001
+Revises: 0002
 Create Date: 2026-11-16 18:22:04.038146
 
 """
@@ -21,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0003'
-down_revision: Union[str, Sequence[str], None] = '0001'
+down_revision: Union[str, Sequence[str], None] = '0002'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

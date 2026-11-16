@@ -23,6 +23,49 @@ docker compose up --build
 
 The backend and frontend folders are mounted into the containers, so code changes reload automatically.
 
+### Load the timetable
+
+The database starts empty. Download the TPBI GTFS archive and import it with the US-01 importer (run each command on its own; the import prints nothing until it ends and can take a few minutes):
+
+```bash
+curl -L -A "Mozilla/5.0" -o backend/gtfs.zip https://gtfs.tpbi.ro/regional/BUCHAREST-REGION.zip
+docker compose exec backend python -m app.gtfs gtfs.zip
+rm backend/gtfs.zip
+```
+
+- On Windows PowerShell use `curl.exe` (plain `curl` is another command there), `backend\gtfs.zip` and `Remove-Item` instead of `rm`.
+- The TPBI server rejects requests without a browser-like User-Agent, hence `-A`.
+- The import should print `gtfs.zip: imported <version> (feed_version_id=<n>)`. An archive already imported is skipped.
+- The VPS collector keeps every timetable version in `/var/lib/stb-collector/static/`; copy that folder locally and run `python -m app.gtfs --all <folder>` to import them all.
+
+### Run the tests
+
+The tests expect an empty database, so they use a separate `stb_test` database (create it once; recreate it after `docker compose down -v`):
+
+```bash
+docker compose exec db psql -U stb -c "create database stb_test"
+docker compose exec -e DATABASE_URL=postgresql+psycopg://stb:stb@db:5432/stb_test backend sh -c "alembic upgrade head && pytest"
+```
+
+Frontend checks (the same as CI):
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+### Reset the database
+
+Deletes all data (timetable, test database); the migrations run again at the next start:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+Needed when switching to a branch that lacks a migration the database already has (`Can't locate revision ...` at startup).
+
 ## Backend without Docker
 
 Needs a PostgreSQL database (e.g. `docker compose up db`).
@@ -32,7 +75,13 @@ cd backend
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/alembic upgrade head
 .venv/bin/uvicorn app.main:app --reload
-.venv/bin/pytest
+```
+
+Tests against the separate test database (see [Run the tests](#run-the-tests)):
+
+```bash
+DATABASE_URL=postgresql+psycopg://stb:stb@localhost:5432/stb_test .venv/bin/alembic upgrade head
+DATABASE_URL=postgresql+psycopg://stb:stb@localhost:5432/stb_test .venv/bin/pytest
 ```
 
 New table: add the model under `app/` (subclass `app.db.Base`), import it in `alembic/env.py`, then:
