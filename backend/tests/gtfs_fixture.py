@@ -63,9 +63,19 @@ BASE_COUNTS = {
 }
 
 
-def build_gtfs_zip(path: Path, version: str = "6.41.1", extra_route: bool = False) -> Path:
-    """Write a GTFS zip to `path`. `extra_route` adds line 133 (one trip, two stops)."""
+def build_gtfs_zip(
+    path: Path, version: str = "6.41.1", extra_route: bool = False, bus_112_minutes_later: int = 0
+) -> Path:
+    """Write a GTFS zip to `path`. `extra_route` adds line 133 (one trip, two stops);
+    `bus_112_minutes_later` moves the times of trip T112_LV_1 (a changed timetable)."""
     routes, trips, stop_times = ROUTES, TRIPS, STOP_TIMES
+    if bus_112_minutes_later:
+        shifted = {
+            "06:00:00": f"06:{bus_112_minutes_later:02d}:00",
+            "06:07:00": f"06:{7 + bus_112_minutes_later:02d}:00",
+        }
+        for old_time, new_time in shifted.items():
+            stop_times = stop_times.replace(f"T112_LV_1,{old_time},{old_time}", f"T112_LV_1,{new_time},{new_time}")
     if extra_route:
         routes += "R133,1,133,3,,,\n"
         trips += "R133,LV,T133_LV_1,,,0,,,,\n"
