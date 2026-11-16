@@ -102,7 +102,7 @@ Incluse în diagramă pentru imaginea completă; se creează doar dacă povești
 
 ## 5. Decizii
 
-Deciziile 2, 5, 6 și 7 au fost luate de PO pe 16.11.2026 (necesare pentru US-02a și US-03), de confirmat de echipă la Sprint Planning (17.11.2026). Deciziile 1, 3 și 4 rămân deschise.
+Deciziile 2, 5, 6, 7 și 8 au fost luate de PO pe 16.11.2026 (necesare pentru US-02a și US-03), de confirmat de echipă la Sprint Planning (17.11.2026). Deciziile 1, 3 și 4 rămân deschise.
 
 1. **Pragul pentru goluri de date:** 60 s (propunere) sau altă valoare. *Deschis.*
 2. **Partiționarea:** ~~lunară~~ **deloc la început.** `arrivals` este un tabel simplu cu indexuri pe `(route_id, service_date)` și `(stop_id, service_date)`; partiționarea se adaugă când volumul o cere.
@@ -111,3 +111,4 @@ Deciziile 2, 5, 6 și 7 au fost luate de PO pe 16.11.2026 (necesare pentru US-02
 5. **Versiunea de orar valabilă într-o zi:** TPBI republică orarul modificat cu aceeași versiune și aceleași date de valabilitate (3 din 4 arhive se numesc `6.41`, toate valabile 07.10.2026 - 05.01.2027). **Decizie:** `feed_versions.retrieved_at` = momentul descărcării de către colector (din numele fișierului); o versiune se aplică de la descărcare până la următoarea.
 6. **Pragul pentru pozițiile vechi (US-02a):** **120 s.** Pozițiile raportate de vehicul cu mai mult de 120 s înainte de interogare sunt ignorate.
 7. **Prioritatea US-02b:** pe o oră reală, doar ~1,7% din trecerile între stații sar o stație. **Decizie:** US-02b coboară după US-08 (Should).
+8. **Prima stație a unei curse (US-03):** vehiculele așteaptă la capăt și raportează `STOPPED_AT` mult înainte de plecare (pe o oră reală, mediana „întârzierii” la prima stație este de -8,5 min, până la -105 min). **Decizie:** prima stație (cel mai mic `stop_sequence` din orar) primește `feed_version_id` și `scheduled_at`, dar `delay_seconds` rămâne gol, deci nu intră în statistici. Întârzierea la plecarea din capăt este un story separat: US-17 (#32).

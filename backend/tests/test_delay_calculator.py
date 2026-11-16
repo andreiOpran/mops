@@ -4,6 +4,9 @@
   AC2  Trips with GTFS times past 24:00 belong to the right service day.
   AC4  A recorded arrival keeps its scheduled time when the timetable changes.
 
+The first stop of a trip gets no delay (decision 8): vehicles wait at the
+terminus and report "stopped" long before the scheduled departure.
+
 Schedule used (tests/gtfs_fixture.py), all on weekdays (service LV):
   T112_LV_1: S1 #0 06:00, S3 #1 06:07
   T41_LV_1:  S3 #0 25:00, S1 #1 (no time), S2 #2 25:10
@@ -17,7 +20,7 @@ from sqlalchemy import delete, select
 
 from app.delays.calculator import compute_delays
 from app.gtfs.importer import import_feed
-from app.models import Arrival, FeedVersion
+from app.models import Arrival, FeedVersion, StopTime, Trip
 from tests.gtfs_fixture import build_gtfs_zip
 
 MONDAY = date(2026, 11, 16)
@@ -63,12 +66,12 @@ def reload(session, row: Arrival) -> Arrival:
 
 def test_late_arrival_gets_a_positive_delay(db_session, tmp_path):
     feed = timetable(db_session, tmp_path, "20261029T205111Z")
-    late = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 3, 20))
+    late = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 10, 20))
 
     stats = compute_delays(db_session)
 
     row = reload(db_session, late)
-    assert row.scheduled_at == utc(MONDAY, 4, 0)  # 06:00 local
+    assert row.scheduled_at == utc(MONDAY, 4, 7)  # 06:07 local
     assert row.delay_seconds == 200
     assert row.feed_version_id == feed.id
     assert (stats.updated, stats.unmatched) == (1, 0)
@@ -114,22 +117,22 @@ def test_stop_without_time_in_the_timetable_is_interpolated(db_session, tmp_path
 
 
 def test_the_timetable_downloaded_last_before_the_arrival_is_used(db_session, tmp_path):
-    old = timetable(db_session, tmp_path, "20261029T205111Z")  # 112 at 06:00
-    new = timetable(db_session, tmp_path, "20261110T090000Z", minutes_later=10)  # 112 at 06:10
-    before_change = arrival(db_session, "T112_LV_1", 0, utc(THURSDAY, 4, 1), day=THURSDAY)
-    after_change = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 11))
+    old = timetable(db_session, tmp_path, "20261029T205111Z")  # 112 at S3 06:07
+    new = timetable(db_session, tmp_path, "20261110T090000Z", minutes_later=10)  # 112 at S3 06:17
+    before_change = arrival(db_session, "T112_LV_1", 1, utc(THURSDAY, 4, 8), day=THURSDAY)
+    after_change = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 18))
 
     compute_delays(db_session)
 
     first, second = reload(db_session, before_change), reload(db_session, after_change)
-    assert (first.feed_version_id, first.scheduled_at, first.delay_seconds) == (old.id, utc(THURSDAY, 4, 0), 60)
-    assert (second.feed_version_id, second.scheduled_at, second.delay_seconds) == (new.id, utc(MONDAY, 4, 10), 60)
+    assert (first.feed_version_id, first.scheduled_at, first.delay_seconds) == (old.id, utc(THURSDAY, 4, 7), 60)
+    assert (second.feed_version_id, second.scheduled_at, second.delay_seconds) == (new.id, utc(MONDAY, 4, 17), 60)
 
 
 def test_arrival_before_the_first_download_uses_the_oldest_timetable(db_session, tmp_path):
     oldest = timetable(db_session, tmp_path, "20261029T205111Z")
-    morning = date(2026, 10, 29)  # Thursday, winter time (UTC+2 since 25.10): 06:00 = 04:00 UTC
-    row = arrival(db_session, "T112_LV_1", 0, utc(morning, 4, 2), day=morning)
+    morning = date(2026, 10, 29)  # Thursday, winter time (UTC+2 since 25.10): 06:07 = 04:07 UTC
+    row = arrival(db_session, "T112_LV_1", 1, utc(morning, 4, 9), day=morning)
 
     compute_delays(db_session)
 
@@ -138,13 +141,55 @@ def test_arrival_before_the_first_download_uses_the_oldest_timetable(db_session,
     assert row.delay_seconds == 120
 
 
+# --- first stop of a trip (decision 8) --------------------------------------------
+
+
+def test_first_stop_of_a_trip_gets_no_delay(db_session, tmp_path):
+    feed = timetable(db_session, tmp_path, "20261029T205111Z")
+    # waiting at the terminus for half an hour before the 06:00 departure
+    terminus = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 3, 30))
+    next_stop = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 8))
+
+    stats = compute_delays(db_session)
+
+    first = reload(db_session, terminus)
+    assert first.delay_seconds is None
+    # still matched to the timetable, so it is not looked at again
+    assert (first.feed_version_id, first.scheduled_at) == (feed.id, utc(MONDAY, 4, 0))
+    assert reload(db_session, next_stop).delay_seconds == 60
+    assert (stats.updated, stats.first_stop, stats.unmatched) == (1, 1, 0)
+
+
+def test_first_stop_is_the_lowest_sequence_in_the_timetable(db_session, tmp_path):
+    feed = timetable(db_session, tmp_path, "20261029T205111Z")
+    # GTFS only requires increasing sequences: make T112_LV_1 start at #1 (06:07)
+    trip = select(Trip.id).where(Trip.feed_version_id == feed.id, Trip.trip_id == "T112_LV_1")
+    db_session.execute(delete(StopTime).where(StopTime.trip_pk == trip.scalar_subquery(), StopTime.stop_sequence == 0))
+    terminus = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 3, 50))
+
+    stats = compute_delays(db_session)
+
+    assert reload(db_session, terminus).delay_seconds is None
+    assert stats.first_stop == 1
+
+
+def test_first_stop_is_not_counted_again_on_the_next_run(db_session, tmp_path):
+    timetable(db_session, tmp_path, "20261029T205111Z")
+    arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 3, 30))
+    compute_delays(db_session)
+
+    stats = compute_delays(db_session)
+
+    assert (stats.updated, stats.first_stop, stats.unmatched) == (0, 0, 0)
+
+
 # --- arrivals that can't be matched ------------------------------------------------
 
 
 def test_trip_missing_from_the_timetable_stays_without_delay(db_session, tmp_path):
     timetable(db_session, tmp_path, "20261029T205111Z")
     unknown = arrival(db_session, "PV9_UNKNOWN", 3, utc(MONDAY, 10, 0))
-    known = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 0))
+    known = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 7))
 
     stats = compute_delays(db_session)
 
@@ -155,7 +200,7 @@ def test_trip_missing_from_the_timetable_stays_without_delay(db_session, tmp_pat
 
 
 def test_nothing_to_compute_without_a_timetable(db_session):
-    arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 0))
+    arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 7))
 
     stats = compute_delays(db_session)
 
@@ -167,7 +212,7 @@ def test_nothing_to_compute_without_a_timetable(db_session):
 
 def test_running_again_changes_nothing(db_session, tmp_path):
     timetable(db_session, tmp_path, "20261029T205111Z")
-    arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 3, 20))
+    arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 10, 20))
     compute_delays(db_session)
 
     assert compute_delays(db_session).updated == 0
@@ -175,7 +220,7 @@ def test_running_again_changes_nothing(db_session, tmp_path):
 
 def test_a_later_timetable_does_not_change_delays_already_computed(db_session, tmp_path):
     timetable(db_session, tmp_path, "20261029T205111Z")
-    row = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 3, 20))
+    row = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 10, 20))
     compute_delays(db_session)
 
     # a new version, downloaded before the arrival, is imported afterwards
@@ -183,17 +228,17 @@ def test_a_later_timetable_does_not_change_delays_already_computed(db_session, t
     compute_delays(db_session)
 
     row = reload(db_session, row)
-    assert (row.scheduled_at, row.delay_seconds) == (utc(MONDAY, 4, 0), 200)
+    assert (row.scheduled_at, row.delay_seconds) == (utc(MONDAY, 4, 7), 200)
 
 
 def test_deleting_the_timetable_keeps_the_recorded_delay(db_session, tmp_path):
     feed = timetable(db_session, tmp_path, "20261029T205111Z")
-    row = arrival(db_session, "T112_LV_1", 0, utc(MONDAY, 4, 3, 20))
+    row = arrival(db_session, "T112_LV_1", 1, utc(MONDAY, 4, 10, 20))
     compute_delays(db_session)
 
     db_session.execute(delete(FeedVersion).where(FeedVersion.id == feed.id))
 
     row = reload(db_session, row)
-    assert (row.scheduled_at, row.delay_seconds) == (utc(MONDAY, 4, 0), 200)
+    assert (row.scheduled_at, row.delay_seconds) == (utc(MONDAY, 4, 7), 200)
     assert row.feed_version_id is None
     assert db_session.scalar(select(Arrival.id).where(Arrival.id == row.id)) is not None
