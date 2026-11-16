@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { search, VEHICLE_LABELS, type SearchResponse } from './api.ts'
+import LineBadge from './LineBadge.tsx'
 
 function Search() {
   const [query, setQuery] = useState('')
@@ -32,33 +33,35 @@ function Search() {
 
   return (
     <section>
-      <label>
-        Caută o linie sau o stație:{' '}
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="ex. 41 sau piata unirii"
-          autoFocus
-        />
-      </label>
+      <input
+        className="search-input"
+        aria-label="Caută"
+        type="search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Linie sau stație"
+        autoFocus
+      />
 
-      {error && <p>Eroare la căutare: {error}</p>}
+      {error && <p className="error">Eroare: {error}</p>}
 
       {shown && shown.lines.length === 0 && shown.stops.length === 0 && (
-        <p>Niciun rezultat pentru „{shown.query}”.</p>
+        <p className="muted">Niciun rezultat.</p>
       )}
 
       {shown && shown.lines.length > 0 && (
         <>
           <h2>Linii</h2>
-          <ul>
+          <ul className="results">
             {shown.lines.map((line) => (
               <li key={line.route_id}>
                 <a href={`#/lines/${encodeURIComponent(line.route_id)}`}>
-                  {VEHICLE_LABELS[line.vehicle_type]} {line.short_name}
+                  <LineBadge number={line.short_name} color={line.color} />
+                  <span>
+                    {VEHICLE_LABELS[line.vehicle_type]}
+                    {line.termini.length > 0 && <span className="muted"> · {line.termini.join(' – ')}</span>}
+                  </span>
                 </a>
-                {line.termini.length > 0 && <> : {line.termini.join(' – ')}</>}
               </li>
             ))}
           </ul>
@@ -68,11 +71,13 @@ function Search() {
       {shown && shown.stops.length > 0 && (
         <>
           <h2>Stații</h2>
-          <ul>
+          <ul className="results">
             {shown.stops.map((stop) => (
               <li key={stop.stop_id}>
-                {stop.name}
-                {stop.description && <> ({stop.description})</>}
+                <span>
+                  {stop.name}
+                  {stop.description && <span className="muted">{stop.description}</span>}
+                </span>
               </li>
             ))}
           </ul>

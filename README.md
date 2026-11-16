@@ -51,6 +51,20 @@ docker compose exec backend python -m app.delays                     # US-03: co
 - `python -m app.delays` prints how many delays were computed, how many arrivals are at the first stop of their trip (no delay: vehicles wait at the terminus) and how many have no match in the timetable.
 - Both are safe to run again: arrivals and delays already stored are kept. Import the timetables first: each arrival uses the one downloaded last before it.
 
+### Fake arrivals for the statistics pages
+
+Until arrival detection fills `arrivals` with real data, generate fake arrivals from the imported timetable (random delays, tagged `vehicle_id = 'DEV-FAKE'`). Never run this in production.
+
+```bash
+docker compose exec backend python -m scripts.dev_fake_arrivals --days 30 --lines 41,178,1
+docker compose exec backend python -m scripts.dev_fake_arrivals --clear
+```
+
+- `--days`: how many days back from today (default 7); `--lines`: line numbers (default: all lines).
+- `--sample 0.1` keeps 10% of the scheduled stops, useful for all lines (all lines for 30 days is ~16M rows).
+- `--clear` removes all fake arrivals.
+- The script refuses to run once `arrivals` holds real data. Clear the fake arrivals before saving real ones: real arrivals for a trip and stop that already has a fake row are skipped.
+
 ### Run the tests
 
 The tests expect an empty database, so they use a separate `stb_test` database (create it once; recreate it after `docker compose down -v`):
