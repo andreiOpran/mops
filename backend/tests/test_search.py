@@ -1,102 +1,10 @@
 """Search a line by number or a stop by name (GET /api/search)."""
 
-from collections.abc import Iterator
-from datetime import date
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.db import get_session
-from app.main import app
-from app.models import Agency, FeedVersion, Route, Service, Stop, StopTime, Trip
-
-TRAM, METRO, BUS = 0, 1, 3
-
-
-class Schedule:
-    """Builds a small schedule version directly in the database."""
-
-    def __init__(self, session: Session, version: str):
-        self.session = session
-        self.feed = self._add(
-            FeedVersion(
-                feed_version=version,
-                sha256=version.ljust(64, "0"),
-                valid_from=date(2026, 10, 7),
-                valid_to=date(2027, 1, 5),
-            )
-        )
-        self.agency = self._add(Agency(feed_version_id=self.feed.id, agency_id="1", name="STB SA"))
-        self.service = self._add(
-            Service(
-                feed_version_id=self.feed.id,
-                service_id="LV",
-                monday=True, tuesday=True, wednesday=True, thursday=True, friday=True,
-                saturday=False, sunday=False,
-                start_date=date(2026, 10, 7),
-                end_date=date(2027, 1, 5),
-            )
-        )
-        self._trips = 0
-
-    def route(self, short_name: str, route_type: int = BUS, long_name: str | None = None) -> Route:
-        return self._add(
-            Route(
-                feed_version_id=self.feed.id,
-                agency_pk=self.agency.id,
-                route_id=f"R{short_name}",
-                short_name=short_name,
-                long_name=long_name,
-                route_type=route_type,
-            )
-        )
-
-    def stop(self, stop_id: str, name: str, description: str | None = None, parent: Stop | None = None) -> Stop:
-        return self._add(
-            Stop(
-                feed_version_id=self.feed.id,
-                stop_id=stop_id,
-                name=name,
-                description=description,
-                lat=44.4,
-                lon=26.1,
-                parent_stop_pk=parent.id if parent else None,
-            )
-        )
-
-    def trip(self, route: Route, direction_id: int, headsign: str | None, stops: list[Stop] = ()) -> Trip:
-        self._trips += 1
-        trip = self._add(
-            Trip(
-                feed_version_id=self.feed.id,
-                trip_id=f"T{self._trips}",
-                route_pk=route.id,
-                service_pk=self.service.id,
-                headsign=headsign,
-                direction_id=direction_id,
-            )
-        )
-        for sequence, stop in enumerate(stops):
-            self._add(StopTime(trip_pk=trip.id, stop_sequence=sequence, stop_pk=stop.id, arrival_seconds=3600))
-        return trip
-
-    def _add(self, row):
-        self.session.add(row)
-        self.session.flush()
-        return row
-
-
-@pytest.fixture
-def client(db_session: Session) -> Iterator[TestClient]:
-    def session_override() -> Iterator[Session]:
-        yield db_session
-
-    app.dependency_overrides[get_session] = session_override
-    try:
-        yield TestClient(app)
-    finally:
-        app.dependency_overrides.clear()
+from tests.factories import BUS, METRO, TRAM, Schedule
 
 
 @pytest.fixture

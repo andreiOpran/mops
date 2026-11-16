@@ -1,10 +1,8 @@
 """Response schemas for the line / stop search."""
 
-from typing import Literal
-
 from pydantic import BaseModel
 
-VehicleType = Literal["tram", "bus", "trolleybus", "other"]
+from app.transit import VehicleType
 
 
 class LineResult(BaseModel):

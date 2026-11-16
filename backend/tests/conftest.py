@@ -2,9 +2,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.db import engine
+from app.db import engine, get_session
+from app.main import app
 from tests.gtfs_fixture import build_gtfs_zip
 
 
@@ -24,6 +26,20 @@ def db_session() -> Iterator[Session]:
         session.close()
         transaction.rollback()
         connection.close()
+
+
+@pytest.fixture
+def client(db_session: Session) -> Iterator[TestClient]:
+    """API client whose requests use `db_session` (rolled back after the test)."""
+
+    def session_override() -> Iterator[Session]:
+        yield db_session
+
+    app.dependency_overrides[get_session] = session_override
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture

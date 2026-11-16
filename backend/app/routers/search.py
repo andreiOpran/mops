@@ -12,12 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import FeedVersion, Route, Stop, StopTime, Trip
-from app.schemas.search import LineResult, SearchResponse, StopResult, VehicleType
+from app.schemas.search import LineResult, SearchResponse, StopResult
+from app.transit import METRO, vehicle_type
 
 router = APIRouter(prefix="/api", tags=["search"])
 
-METRO = 1
-VEHICLE_TYPES: dict[int, VehicleType] = {0: "tram", 3: "bus", 11: "trolleybus"}
 MAX_LINES = 10
 MAX_STOPS = 20
 
@@ -63,7 +62,7 @@ def _search_lines(session: Session, feed_id: int, query: str) -> list[LineResult
             route_id=route.route_id,
             short_name=route.short_name,
             route_type=route.route_type,
-            vehicle_type=VEHICLE_TYPES.get(route.route_type, "other"),
+            vehicle_type=vehicle_type(route.route_type),
             color=route.color,
             termini=termini.get(route.id) or _split_long_name(route.long_name),
         )
