@@ -128,6 +128,8 @@ def test_stops_keep_diacritics_and_parent_station(db_session, gtfs_v1):
     assert stops["S3"].parent_stop_pk is None
     assert stops["S3"].lat == pytest.approx(44.411)
     assert stops["S3"].lon == pytest.approx(26.042)
+    assert stops["S3"].description == "Bd. Ghencea, Bucuresti"
+    assert stops["S1"].description is None
 
 
 def test_services_keep_running_days_and_dates(db_session, gtfs_v1):

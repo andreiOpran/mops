@@ -27,7 +27,7 @@ STOPS = """stop_id,stop_name,stop_desc,stop_lat,stop_lon,location_type,platform_
 P1,Piața Unirii,,44.42710,26.10260,1,,,
 S1,Piața Unirii,,44.42700,26.10250,,,P1,
 S2,Piața Unirii,,44.42720,26.10270,,,P1,
-S3,Ghencea,,44.41100,26.04200,,,,
+S3,Ghencea,"Bd. Ghencea, Bucuresti",44.41100,26.04200,,,,
 """
 
 CALENDAR = """service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date

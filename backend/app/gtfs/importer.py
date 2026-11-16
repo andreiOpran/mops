@@ -120,6 +120,7 @@ def _import_stops(session: Session, feed_id: int, archive: zipfile.ZipFile) -> I
             "feed_version_id": feed_id,
             "stop_id": row["stop_id"],
             "name": row["stop_name"],
+            "description": _text_or_none(row.get("stop_desc")),
             "lat": float(row["stop_lat"]),
             "lon": float(row["stop_lon"]),
         }

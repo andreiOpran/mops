@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     Text,
@@ -80,11 +81,22 @@ class Stop(Base):
     feed_version_id: Mapped[int] = _feed_version_fk()
     stop_id: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
+    # GTFS stop_desc: the street, e.g. "Bd. Regina Maria, Bucuresti".
+    description: Mapped[str | None] = mapped_column(Text)
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
     parent_stop_pk: Mapped[int | None] = mapped_column(
         ForeignKey("stops.id", ondelete="SET NULL")
     )
+
+
+# Accent-insensitive partial name search; f_unaccent() is created in migration 0002.
+Index(
+    "ix_stops_name_search",
+    func.f_unaccent(func.lower(Stop.name)).label("name_search"),
+    postgresql_using="gin",
+    postgresql_ops={"name_search": "gin_trgm_ops"},
+)
 
 
 class Service(Base):
