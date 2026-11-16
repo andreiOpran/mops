@@ -12,11 +12,12 @@ import argparse
 import csv
 import sys
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from pathlib import Path
 
 from google.protobuf.message import DecodeError
+from sqlalchemy.orm import Session
 
 from app.arrivals.detector import Arrival, ArrivalDetector
 from app.arrivals.feed import read_snapshot
@@ -33,7 +34,7 @@ CSV_FIELDS = [
 ]
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, session_factory: Callable[[], Session] | None = None) -> int:
     args = _parser().parse_args(argv)
 
     snapshots = sorted(args.folder.rglob("*.pb.gz"), key=lambda path: path.name)
