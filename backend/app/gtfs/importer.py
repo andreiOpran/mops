@@ -41,6 +41,12 @@ def parse_gtfs_time(value: str) -> int | None:
     return hours * 3600 + minutes * 60 + seconds
 
 
+def retrieved_at_from_name(path: Path) -> datetime | None:
+    """Download time encoded by the collector in the archive name
+    (<YYYYMMDDTHHMMSSZ>_<hash>.zip, UTC). None for any other name."""
+    raise NotImplementedError
+
+
 def import_feed(session: Session, zip_path: Path) -> FeedVersion | None:
     """Import one GTFS archive as a new feed version.
 
