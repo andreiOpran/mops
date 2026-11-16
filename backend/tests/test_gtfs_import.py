@@ -8,13 +8,14 @@ Acceptance criteria (issue #4):
 """
 
 import hashlib
-from datetime import date
+from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.gtfs.importer import import_feed, parse_gtfs_time
+from app.gtfs.importer import import_feed, parse_gtfs_time, retrieved_at_from_name
 from app.models import (
     Agency,
     FeedVersion,
@@ -24,7 +25,7 @@ from app.models import (
     StopTime,
     Trip,
 )
-from tests.gtfs_fixture import BASE_COUNTS
+from tests.gtfs_fixture import BASE_COUNTS, build_gtfs_zip
 
 TABLES = {
     "agencies": Agency,
@@ -226,6 +227,9 @@ def test_new_version_leaves_previous_version_unchanged(db_session, gtfs_v1, gtfs
     assert old_times == 3
 
 
+# --- re-import fills columns added later (stops.description, migration 0002) ---
+
+
 def test_reimport_fills_descriptions_missing_from_an_earlier_import(db_session, gtfs_v1):
     # A DB imported before stops.description existed (migration 0002) has NULLs.
     feed = import_feed(db_session, gtfs_v1)
@@ -256,3 +260,43 @@ def test_reimport_does_not_overwrite_existing_descriptions(db_session, gtfs_v1):
         select(Stop).where(Stop.feed_version_id == feed.id, Stop.stop_id == "S3")
     ).one()
     assert s3.description == "edited"
+
+
+# --- retrieved_at: which version applied on a given day (decision 5) ---------------
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("20261104T210057Z_f06ddabad6ff.zip", datetime(2026, 11, 4, 21, 0, 57, tzinfo=UTC)),
+        ("20261029T205111Z_638006e1ea12.zip", datetime(2026, 10, 29, 20, 51, 11, tzinfo=UTC)),
+        ("gtfs.zip", None),
+        ("BUCHAREST-REGION.zip", None),
+        ("20261399T999999Z_bad.zip", None),  # looks like a timestamp, is not a date
+    ],
+)
+def test_retrieved_at_is_read_from_the_collector_file_name(name, expected):
+    assert retrieved_at_from_name(Path("/var/lib/stb-collector/static") / name) == expected
+
+
+def test_import_records_when_the_collector_downloaded_the_archive(db_session, tmp_path):
+    archive = build_gtfs_zip(tmp_path / "20261104T210057Z_f06ddabad6ff.zip")
+
+    feed = import_feed(db_session, archive)
+
+    assert feed.retrieved_at == datetime(2026, 11, 4, 21, 0, 57, tzinfo=UTC)
+
+
+def test_archive_without_timestamp_in_name_has_no_retrieved_at(db_session, gtfs_v1):
+    assert import_feed(db_session, gtfs_v1).retrieved_at is None
+
+
+def test_reimport_fills_retrieved_at_of_versions_imported_before_migration_0003(db_session, tmp_path):
+    archive = build_gtfs_zip(tmp_path / "20261104T210057Z_f06ddabad6ff.zip")
+    feed = import_feed(db_session, archive)
+    db_session.execute(update(FeedVersion).values(retrieved_at=None))
+
+    assert import_feed(db_session, archive) is None  # nothing new imported
+
+    db_session.refresh(feed)
+    assert feed.retrieved_at == datetime(2026, 11, 4, 21, 0, 57, tzinfo=UTC)

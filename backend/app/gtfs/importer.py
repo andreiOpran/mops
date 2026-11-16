@@ -11,7 +11,7 @@ import io
 import re
 import zipfile
 from collections.abc import Iterator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from sqlalchemy import bindparam, insert, select, update
@@ -23,6 +23,8 @@ Row = dict[str, str]
 IdMap = dict[str, int]
 
 _TIME = re.compile(r"(\d+):(\d{2}):(\d{2})")
+# Archive names written by the collector (T-01): <UTC download time>_<hash>.zip
+_COLLECTOR_NAME = re.compile(r"(\d{8}T\d{6}Z)_")
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -41,25 +43,42 @@ def parse_gtfs_time(value: str) -> int | None:
     return hours * 3600 + minutes * 60 + seconds
 
 
+def retrieved_at_from_name(path: Path) -> datetime | None:
+    """Download time encoded by the collector in the archive name
+    (<YYYYMMDDTHHMMSSZ>_<hash>.zip, UTC). None for any other name."""
+    match = _COLLECTOR_NAME.match(Path(path).name)
+    if match is None:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+    except ValueError:  # right shape, impossible date
+        return None
+
+
 def import_feed(session: Session, zip_path: Path) -> FeedVersion | None:
     """Import one GTFS archive as a new feed version.
 
     Returns the new FeedVersion, or None if this exact archive (same sha256)
     was already imported. In that case, columns added after the first import
-    (stops.description, migration 0002) are filled in where still empty.
+    are filled in where still empty: stops.description (migration 0002) and
+    feed_versions.retrieved_at (migration 0003, from the file name).
     Does not commit: the caller owns the transaction, so a failed import
     leaves nothing behind.
     """
     sha256 = _sha256(zip_path)
-    existing_id = session.scalar(select(FeedVersion.id).where(FeedVersion.sha256 == sha256))
-    if existing_id is not None:
+    retrieved_at = retrieved_at_from_name(zip_path)
+    existing = session.scalars(select(FeedVersion).where(FeedVersion.sha256 == sha256)).first()
+    if existing is not None:
+        if existing.retrieved_at is None and retrieved_at is not None:
+            existing.retrieved_at = retrieved_at
+            session.flush()
         with zipfile.ZipFile(zip_path) as archive:
-            _backfill_stop_descriptions(session, existing_id, archive)
+            _backfill_stop_descriptions(session, existing.id, archive)
         return None
 
     with zipfile.ZipFile(zip_path) as archive:
         calendar = _read(archive, "calendar.txt")
-        feed = _create_feed_version(session, archive, sha256, calendar)
+        feed = _create_feed_version(session, archive, sha256, calendar, retrieved_at)
 
         agencies = _import_agencies(session, feed.id, archive)
         routes = _import_routes(session, feed.id, archive, agencies)
@@ -100,11 +119,16 @@ def _backfill_stop_descriptions(session: Session, feed_id: int, archive: zipfile
 
 
 def _create_feed_version(
-    session: Session, archive: zipfile.ZipFile, sha256: str, calendar: list[Row]
+    session: Session,
+    archive: zipfile.ZipFile,
+    sha256: str,
+    calendar: list[Row],
+    retrieved_at: datetime | None,
 ) -> FeedVersion:
     feed = FeedVersion(
         feed_version=_read(archive, "feed_info.txt")[0]["feed_version"],
         sha256=sha256,
+        retrieved_at=retrieved_at,
         valid_from=min(_date(row["start_date"]) for row in calendar),
         valid_to=max(_date(row["end_date"]) for row in calendar),
     )

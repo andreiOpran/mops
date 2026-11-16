@@ -1,5 +1,6 @@
 """ORM models. Importing this package registers every table on Base.metadata."""
 
+from app.models.arrivals import Arrival
 from app.models.gtfs import (
     Agency,
     FeedVersion,
@@ -13,6 +14,7 @@ from app.models.gtfs import (
 
 __all__ = [
     "Agency",
+    "Arrival",
     "FeedVersion",
     "Route",
     "Service",
