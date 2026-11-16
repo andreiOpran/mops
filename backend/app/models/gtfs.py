@@ -43,6 +43,10 @@ class FeedVersion(Base):
     imported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # When the collector downloaded this archive (from its file name). TPBI
+    # republishes changed timetables with the same version and dates, so this
+    # is what tells which version applied on a given day (migration 0003).
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class Agency(Base):

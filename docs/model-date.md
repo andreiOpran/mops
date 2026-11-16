@@ -37,7 +37,7 @@ Constrângerea unică `(service_date, trip_id, stop_sequence)` garantează crite
 
 ### 1.5 Partiționare după dată
 
-`arrivals` este partiționat lunar după `service_date` (NFR-05). Volum estimat din orarul actual (fără metrou): ~600 000 de opriri programate într-o zi lucrătoare, ~405 000 sâmbăta sau duminica, deci până la ~18 milioane de înregistrări pe lună (~100 MB pe zi cu indexuri). Interogările pe un interval citesc doar partițiile necesare (NFR-04).
+Propunerea inițială: `arrivals` partiționat lunar după `service_date` (NFR-05); amânată, vezi decizia 2 din secțiunea 5. Volum estimat din orarul actual (fără metrou): ~600 000 de opriri programate într-o zi lucrătoare, ~405 000 sâmbăta sau duminica, deci până la ~18 milioane de înregistrări pe lună (~100 MB pe zi cu indexuri). Interogările pe un interval citesc doar partițiile necesare (NFR-04).
 
 ## 2. Tabele
 
@@ -45,7 +45,7 @@ Constrângerea unică `(service_date, trip_id, stop_sequence)` garantează crite
 
 | Tabel | Sursă GTFS | Observații |
 |---|---|---|
-| `feed_versions` | `feed_info.txt`, arhiva | `sha256` unic: aceeași arhivă nu se importă de două ori. `valid_from` / `valid_to` din `calendar.txt`. |
+| `feed_versions` | `feed_info.txt`, arhiva | `sha256` unic: aceeași arhivă nu se importă de două ori. `valid_from` / `valid_to` din `calendar.txt`. `retrieved_at` din numele fișierului salvat de colector (decizia 5). |
 | `agencies` | `agency.txt` | STB, STV, STCM, Regio Serv, Metrorex |
 | `routes` | `routes.txt` | `route_type`: 0 tramvai, 3 autobuz, 11 troleibuz, 1 metrou |
 | `stops` | `stops.txt` | `parent_stop_pk` pentru stațiile cu mai multe peroane |
@@ -64,12 +64,12 @@ Nu se importă: `shapes.txt` (eventual mai târziu, pentru harta din US-12), tar
 |---|---|---|
 | `id` | bigint | identificator |
 | `service_date` | date | ziua de serviciu (`start_date` din GTFS-RT) |
-| `feed_version_id` | int | versiunea de orar folosită |
+| `feed_version_id` | int | versiunea de orar folosită (completată la calculul întârzierii, US-03) |
 | `trip_id`, `route_id`, `stop_id` | text | coduri GTFS |
 | `stop_sequence` | smallint | poziția stației în cursă |
-| `scheduled_at` | timestamptz | ora programată |
+| `scheduled_at` | timestamptz | ora programată (US-03) |
 | `observed_at` | timestamptz | ora reală (detectată) |
-| `delay_seconds` | int | `observed_at - scheduled_at`; negativ = mai devreme |
+| `delay_seconds` | int | `observed_at - scheduled_at`; negativ = mai devreme (US-03) |
 | `method` | enum | `stopped_at`, `sequence_advance`, `trip_update_estimate` (FR-03) |
 | `vehicle_id` | text | vehiculul (opțional) |
 
@@ -100,9 +100,14 @@ Incluse în diagramă pentru imaginea completă; se creează doar dacă povești
 | `collection_gaps` | FR-06 | US-09 |
 | `users`, `favorites` | FR-17, FR-18, NFR-06, NFR-07 | US-14, US-15 |
 
-## 5. De decis de echipă
+## 5. Decizii
 
-1. **Pragul pentru goluri de date:** 60 s (propunere) sau altă valoare.
-2. **Partiționarea:** lunară (propunere) sau deloc la început, adăugată când volumul o cere.
-3. **Zilele de sărbătoare:** orarul actual nu are `calendar_dates`, deci pentru 30.11, 1.12, 25-26.12 și 1-2.01 orarul declarat poate diferi de cel real. Propunere: marcarea acestor zile și excluderea lor din statistici (sau afișarea separată).
-4. **Unde rulează baza de date:** pe VPS, discul de 38 GB este folosit deja de arhiva brută (T-02). La ~100 MB pe zi, `arrivals` mai adaugă câțiva GB până la prezentarea finală. De decis împreună cu T-02.
+Deciziile 2, 5, 6 și 7 au fost luate de PO pe 16.11.2026 (necesare pentru US-02a și US-03), de confirmat de echipă la Sprint Planning (17.11.2026). Deciziile 1, 3 și 4 rămân deschise.
+
+1. **Pragul pentru goluri de date:** 60 s (propunere) sau altă valoare. *Deschis.*
+2. **Partiționarea:** ~~lunară~~ **deloc la început.** `arrivals` este un tabel simplu cu indexuri pe `(route_id, service_date)` și `(stop_id, service_date)`; partiționarea se adaugă când volumul o cere.
+3. **Zilele de sărbătoare:** orarul actual nu are `calendar_dates`, deci pentru 30.11, 1.12, 25-26.12 și 1-2.01 orarul declarat poate diferi de cel real. Propunere: marcarea acestor zile și excluderea lor din statistici (sau afișarea separată). *Deschis.*
+4. **Unde rulează baza de date:** pe VPS, discul de 38 GB este folosit deja de arhiva brută (T-02). La ~100 MB pe zi, `arrivals` mai adaugă câțiva GB până la prezentarea finală. De decis împreună cu T-02. *Deschis.*
+5. **Versiunea de orar valabilă într-o zi:** TPBI republică orarul modificat cu aceeași versiune și aceleași date de valabilitate (3 din 4 arhive se numesc `6.41`, toate valabile 07.10.2026 - 05.01.2027). **Decizie:** `feed_versions.retrieved_at` = momentul descărcării de către colector (din numele fișierului); o versiune se aplică de la descărcare până la următoarea.
+6. **Pragul pentru pozițiile vechi (US-02a):** **120 s.** Pozițiile raportate de vehicul cu mai mult de 120 s înainte de interogare sunt ignorate.
+7. **Prioritatea US-02b:** pe o oră reală, doar ~1,7% din trecerile între stații sar o stație. **Decizie:** US-02b coboară după US-08 (Should).

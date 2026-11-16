@@ -17,6 +17,7 @@ package "Orar GTFS (versionat, US-01)" #F4F8FB {
     * valid_from : date
     * valid_to : date
     * imported_at : timestamptz
+    retrieved_at : timestamptz
   }
 
   entity agencies {
@@ -89,18 +90,18 @@ package "Orar GTFS (versionat, US-01)" #F4F8FB {
 }
 
 package "Set de date (US-02, US-03, US-09)" #F7FBF4 {
-  entity arrivals <<partitioned by service_date>> {
+  entity arrivals {
     * id : bigint <<PK>>
-    * service_date : date <<PK>>
     --
-    * feed_version_id : int <<FK>>
+    * service_date : date
+    feed_version_id : int <<FK>>
     * trip_id : text
     * route_id : text
     * stop_id : text
     * stop_sequence : smallint
-    * scheduled_at : timestamptz
+    scheduled_at : timestamptz
     * observed_at : timestamptz
-    * delay_seconds : int
+    delay_seconds : int
     * method : arrival_method
     vehicle_id : text
     --
